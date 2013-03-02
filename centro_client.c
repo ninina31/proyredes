@@ -15,29 +15,81 @@ struct Server{
     int port;
     char host[128];
     int time;
+    struct Server *next;
 };
 
 typedef struct Server bestServer;
+
+struct List {
+
+    bestServer *begin;
+    bestServer *end;
+    int size;
+};
+
+typedef struct List list;
+
+void inicializeList(list *target){
+
+    (*target).begin = NULL;
+    (*target).end = NULL;
+    (*target).size = 0;
+}
+
+void addList(list *target, bestServer *object){
+
+    bestServer *temp = (*target).begin;
+    bestServer *temp2 = (*temp).next;
+    int n = 0;
+
+    if ((*target).size == 0){
+        (*target).begin = object;
+        (*target).end = object;
+        (*object).next = NULL;
+        (*target).size = 1;
+        n = 1;
+        temp = NULL;
+    }
+
+    while(temp2 != NULL){
+        if ((*temp2).time >= (*object).time){
+            (*object).next = (*temp2).next;
+            (*temp).next = object;
+            n = 1;
+            break;
+        }
+        temp = temp2;
+        temp2 = (*temp2).next;
+    }
+
+    if (n == 0){
+        (*target).end = object;
+        (*object).next = NULL;
+    }
+
+    (*target).size += 1;
+}
 
 void errorControler(const char *msg){
     perror(msg);
     exit(1);
 }
 
-bestServer* seekBestTime(char CentersFile[]){
+list *seekBestTime(char CentersFile[]){
     
     FILE *fp;
-    bestServer *best = (bestServer *)malloc(sizeof(bestServer));
+
+    list *result;
+    bestServer *tempitem;
+
     char ip[41];
     char distCenter[41];
     int port;
-    int n;
+    int n, i;
 
     int bestTime = 0;
 
     fp = fopen(CentersFile, "r");
-    (*best).port = 0;
-    (*best).time = 180;
 
     CLIENT *clnt;
     int  *result_1;
@@ -48,6 +100,8 @@ bestServer* seekBestTime(char CentersFile[]){
 
             n = fscanf(fp, "%[^&]&%[^&]&%d\n", distCenter, ip, &port);
 
+            tempitem = (bestServer *)malloc(sizeof(bestServer));
+
             clnt = clnt_create (ip, CENTRO_PROG, CENTRO_VERS, "udp");
             if (clnt != NULL) {
 
@@ -55,17 +109,16 @@ bestServer* seekBestTime(char CentersFile[]){
 
                 bestTime = *result_1;
 
-                if ((bestTime <= (*best).time) && (strcmp((*best).distCenter, distCenter) != 0)){
+                strcpy((*tempitem).distCenter,distCenter);
+                (*tempitem).time = bestTime;
+                strcpy((*tempitem).host,ip);
+                (*tempitem).port = port;
 
-                    strcpy((*best).distCenter,distCenter);
-                    (*best).time = bestTime;
-                    strcpy((*best).host,ip);
-                    (*best).port = port;
-                }
+                addList(result, tempitem);
 
                 clnt_destroy (clnt);
-            }
 
+            }
         }
 
     } else{
@@ -76,9 +129,7 @@ bestServer* seekBestTime(char CentersFile[]){
        errorControler( "Error: archivo no cerrado\n");
     }
 
-    printf("Mejor tiempo de respuesta: %d minutos\n", (*best).time);
-
-    return best;
+    return result;
 }
 
 /*
@@ -94,7 +145,7 @@ Salida: tiempo de respuesta de la peticion de suministro de gasolina.
 
 */
 
-int askForGas(bestServer *orig, char CentersFile[], FILE *report, int elapsedTime, char *gasStation){
+int askForGas(bestServer **orig, list *servers, char CentersFile[], FILE *report, int elapsedTime, char *gasStation){
 
     int bool = 0;
     int respuesta = 0;
@@ -103,7 +154,12 @@ int askForGas(bestServer *orig, char CentersFile[], FILE *report, int elapsedTim
     time_t end;
     int timeSpent;
 
-    bestServer *best = orig;
+    time_t bMeasureTime;
+    time_t eMeasureTime;
+
+    int totalTime = elapsedTime;
+
+    bestServer **best = orig;
 
     int n;
 
@@ -112,9 +168,11 @@ int askForGas(bestServer *orig, char CentersFile[], FILE *report, int elapsedTim
 
     begin = time(NULL);
 
-    while(bool == 0){
+    while(bool == 0 && totalTime < MT){
 
-        clnt = clnt_create ((*best).distCenter, CENTRO_PROG, CENTRO_VERS, "udp");
+        bMeasureTime = time(NULL);
+
+        clnt = clnt_create ((**best).distCenter, CENTRO_PROG, CENTRO_VERS, "udp");
 
         if (clnt == NULL){
 
@@ -123,16 +181,13 @@ int askForGas(bestServer *orig, char CentersFile[], FILE *report, int elapsedTim
             end = time(NULL);
             timeSpent = (int)(end - begin)*10;
             n = elapsedTime + timeSpent;
-            fprintf(report, "Peticion: %d minutos, %s, Sin Respuesta.\n\n", n, (*best).distCenter);
-            n = (*best).port;
+            fprintf(report, "Peticion: %d minutos, %s, Sin Respuesta.\n\n", n, (**best).distCenter);
+            n = (**best).port;
 
-            while(1){
-                best = seekBestTime(CentersFile);
-                if((*best).port != 0) break;
-                sleep(2);
-            }
-
-            printf("Centro encontrado!\n");
+            if((**best).next == NULL)
+                *best = (*servers).begin;
+            else
+                *best = (**best).next;
         }
 
         end = time(NULL);
@@ -144,27 +199,24 @@ int askForGas(bestServer *orig, char CentersFile[], FILE *report, int elapsedTim
         respuesta = *result_2;
 
         if (respuesta == 0){
-            fprintf(report, "Peticion: %d minutos, %s, OK.\n\n", n, (*best).distCenter);
+            fprintf(report, "Peticion: %d minutos, %s, OK.\n\n", n, (**best).distCenter);
             bool = 1;
 
         } else {
-            fprintf(report, "Peticion: %d minutos, %s, Sin inventario.\n\n", n, (*best).distCenter);
+            fprintf(report, "Peticion: %d minutos, %s, Sin inventario.\n\n", n, (**best).distCenter);
 
             printf("El centro me respondio que no tiene suministro, buscando otro centro...\n");
 
-            n = (*best).port;
-
-            while(1){
-                best = seekBestTime(CentersFile);
-                if(((*best).port != n) && ((*best).port != 0)) break;
-                sleep(2);
-            }
-
-            printf("Centro encontrado!\n");
-
+            if((**best).next == NULL)
+                *best = (*servers).begin;
+            else
+                *best = (**best).next;
         }
 
         clnt_destroy (clnt);
+        eMeasureTime = time(NULL);
+
+        totalTime += (int)(eMeasureTime - bMeasureTime);
 
     }
 
@@ -226,7 +278,8 @@ main (int argc, char *argv[])
     int missingGas = 0;
     double sust = 0.0;
 
-    bestServer *best;
+    list *best;
+    bestServer *currentServer;
 
     if (argc != 11) {
        errorControler("El numero de argumentos es invalido, abortando...\n");
@@ -262,11 +315,9 @@ main (int argc, char *argv[])
 
     begin = time(NULL);
 
-    (*best).port = 0;
+    best = seekBestTime(CentersFile);
 
-    while ((*best).port == 0){
-        best = seekBestTime(CentersFile);
-    }
+    currentServer = (*best).begin;
 
     strcat(fileName, gasStation);
     strcat(fileName, ".txt");
@@ -299,10 +350,10 @@ main (int argc, char *argv[])
                 fprintf(report, "Tanque vacio: %d minutos.\n\n", elapsedTime);
             }
             
-            elapsedTime += askForGas(best, CentersFile, report, elapsedTime, gasStation);
-            sleep((*best).time*0.10);
+            elapsedTime += askForGas(&currentServer, best, CentersFile, report, elapsedTime, gasStation);
+            sleep((*currentServer).time*0.10);
 
-            elapsedTime += (*best).time;
+            elapsedTime += (*currentServer).time;
 
             i += 38000;
 
@@ -316,34 +367,36 @@ main (int argc, char *argv[])
                 fprintf(report, "Tanque full: %d minutos.\n\n", elapsedTime);
             }
 
-	    missingTime = (double)(38000 - missingGas) / c;
-
-            sust = missingTime - (*best).time;
+            if (c != 0){
+                missingTime = (double)(38000 - missingGas) / c;
+                sust = missingTime - (*currentServer).time;
+            } else {
+                missingTime = 0;
+            }
 	     
             if (sust < 0.0){
 
-                elapsedTime += askForGas(best, CentersFile, report, elapsedTime, gasStation);
-                sleep((*best).time*0.10);
-                elapsedTime = elapsedTime + (*best).time;
+                elapsedTime += askForGas(&currentServer, best, CentersFile, report, elapsedTime, gasStation);
+                sleep((*currentServer).time*0.10);
+                elapsedTime = elapsedTime + (*currentServer).time;
 
-                i -= (*best).time*c;
+                i -= (*currentServer).time*c;
+                i += 38000;
 
+            } else if (sust == 0.0){
+                sleep((MT - elapsedTime)*0.10);
             } else {
 
                 sleep(sust*0.10);
         		elapsedTime += sust;
         		i -= (sust)*c;
-        		elapsedTime += askForGas(best, CentersFile, report, elapsedTime, gasStation);
-        		sleep((*best).time*0.10);
-                elapsedTime += (*best).time;
-                i -= (*best).time*c;
-		
+        		elapsedTime += askForGas(&currentServer, best, CentersFile, report, elapsedTime, gasStation);
+        		sleep((*currentServer).time*0.10);
+                elapsedTime += (*currentServer).time;
+                i -= (*currentServer).time*c;
+                i += 38000;
             }
-            
-            printf("Ya espere y tengo espacio, abastecere...\n");
-
-            i += 38000;
-        }   
+        }
 
     }
 
@@ -352,10 +405,17 @@ main (int argc, char *argv[])
 	else {
       errorControler( "Error: archivo de reporte no se ha cerrado\n" );
 	}
-   
-	free(best);
 
+    currentServer = (*best).begin;
+    bestServer *temp = (*currentServer).next;
 
-	//centro_prog_1 (host)
+	while(currentServer != NULL){
+        free(currentServer);
+        currentServer = temp;
+        if (temp != NULL){
+            temp = (*temp).next;
+        }
+    }
+
 	return (0);
 }
