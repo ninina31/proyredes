@@ -5,7 +5,83 @@
  */
 
 #include "centro.h"
-#include "util.h"
+#ifndef timeWorking
+#define timeWorking 480
+#endif
+
+pthread_mutex_t lock_file;
+pthread_mutex_t lock_inventory;
+
+FILE* file;
+int executionTime = 0;
+char centerName[42];
+int maximumCapacity = 0;
+int inventory = 0;
+int supply = 0;
+int timeTruck = 0;
+
+int getTime(){
+    return timeTruck;
+}
+int getSupply(){
+    return supply;
+}
+int getCapacity(){
+    return maximumCapacity;
+}
+int getInventory(){
+    return inventory;
+}
+
+void setInventory(int newInventory){
+
+    pthread_mutex_lock(&lock_inventory);
+    inventory = newInventory;
+    pthread_mutex_unlock(&lock_inventory);
+}
+
+void errorControler(const char *msg){
+    perror(msg);
+    exit(1);
+}
+
+/*
+ @objetivo de la funcion: modificar el inventario del centro cada vez que un cliente hace una peticion
+*/
+int empty(){
+    int i = getInventory();
+    if ( i >= 38000 ){
+	setInventory(i - 38000);
+    }
+    return i;
+}
+/*
+ @string: cadena de caracteres que representa lo que se va a escribir en un fichero
+ @objetivo de la funcion: escribir en un fichero la cadena de caracteres representada por string
+*/
+void writeInFile(char *string){
+    
+    pthread_mutex_lock(&lock_file);
+    
+    fprintf(file, "%s\n\n", string);
+
+    pthread_mutex_unlock(&lock_file);
+}
+/*
+ @objetivo de *timeHandler: funcion que ejecuta el tiempo de ejecucion del servidor, el mismo no sera mayor que 48 segundos
+*/
+void *timeHandler(){
+
+    int n;
+    int fill = 10*supply;
+
+    while( executionTime < timeWorking ){
+    	sleep( 1 );
+    	executionTime += 10;
+        setInventory(getInventory() + fill);
+    }
+}
+
 
 int *
 askfortime_1_svc(void *argp, struct svc_req *rqstp)
