@@ -9,6 +9,10 @@
 #define MT 480
 #endif
 #include <string.h>
+#include <pthread.h>
+
+int executionTime = 0;
+int inventory;
 
 struct Server{
     
@@ -85,7 +89,7 @@ list *seekBestTime(char CentersFile[]){
     char ip[41];
     char distCenter[41];
     int port;
-    int n, i;
+    int n;
 
     int bestTime = 0;
 
@@ -187,13 +191,13 @@ int askForGas(bestServer **orig, list **servers, char CentersFile[], FILE *repor
         *servers = seekBestTime(CentersFile);
     }
 
-    while(bool == 0 && totalTime < MT){
+    while (bool == 0 && totalTime < MT){
 
         printf("entre a pedir\n");
 
         bMeasureTime = time(NULL);
 
-        clnt = clnt_create ((**best).distCenter, CENTRO_PROG, CENTRO_VERS, "udp");
+        clnt = clnt_create ((**best).host, CENTRO_PROG, CENTRO_VERS, "udp");
 
         if (clnt == NULL){
 
@@ -205,15 +209,14 @@ int askForGas(bestServer **orig, list **servers, char CentersFile[], FILE *repor
             fprintf(report, "Peticion: %d minutos, %s, Sin Respuesta.\n\n", n, (**best).distCenter);
             n = (**best).port;
 
-            while((**best).next == NULL){
+            if((**best).next == NULL){
                 *servers = seekBestTime(CentersFile);
-
                 printf("estoy aqui1\n");
                 *best = (**servers).begin;
                 printf("estoy aqui2\n");
+            } else {
+                *best = (**best).next;
             }
-            
-            *best = (**best).next;
             
         }
 
@@ -248,6 +251,8 @@ int askForGas(bestServer **orig, list **servers, char CentersFile[], FILE *repor
         eMeasureTime = time(NULL);
 
         totalTime += (int)(eMeasureTime - bMeasureTime);
+
+        printf("totalTime : %d\n", totalTime);
 
     }
 
@@ -290,13 +295,23 @@ centro_prog_1(char *host)
 #endif	 /* DEBUG */
 }
 
+void *timeHandler(void *c){
+
+    double fill = 0.5*(int)*c;
+
+    while( executionTime < MT ){
+        sleep( 0.5 );
+        executionTime += 5;
+        inventory -= (int)fill;
+    }
+}
+
 
 int
 main (int argc, char *argv[])
 {
 	char *gasStation = (char*)malloc(sizeof(char)*255);
     int cp = 0;
-    int i = 0;
     int c = 0;
     char* CentersFile;
     int count = 0;
@@ -313,6 +328,8 @@ main (int argc, char *argv[])
 
     list *best = NULL;
     bestServer *currentServer;
+
+    pthread_t timeThread;
 
     if (argc != 11) {
         perror("El numero de argumentos es invalido, abortando...\n");
@@ -332,8 +349,8 @@ main (int argc, char *argv[])
             }
             continue;
         } else if (strcmp(argv[count*2 + 1],"-i") == 0){
-            i = atoi(argv[count*2 + 2]);
-            if (!(0 <= i && i <= cp)){
+            inventory = atoi(argv[count*2 + 2]);
+            if (!(0 <= inventory && inventory <= cp)){
                 perror("En inventario debe estar entre 0 y la capacidad maxima\n");
                 exit(1);
             }
@@ -365,26 +382,28 @@ main (int argc, char *argv[])
         exit(1);
     }
     
-    fprintf(report, "Eventos Importantes\n\n", i);
+    fprintf(report, "Eventos Importantes\n\n");
 
-    fprintf(report, "Inventario Inicial: %d litros.\n\n", i);
+    fprintf(report, "Inventario Inicial: %d litros.\n\n", inventory);
 
     end = time(NULL);
+
+    pthread_create( &timeThread, NULL, timeHandler, (void *)&c );
 
     elapsedTime = (int) (end - begin);
     
     while( elapsedTime < MT ){
 
         printf("Tiempo Transcurrido: %d\n", elapsedTime);
-        printf("Inventario: %d\n", i);
+        printf("Inventario: %d\n", inventory);
 
-        missingGas = cp - i;
+        missingGas = cp - inventory;
 
         if (missingGas >= 38000){
 
             printf("Tengo espacio para mas gasolina, pedire suministro\n");
 
-	    if (i == 0){
+	    if (inventory == 0){
                 fprintf(report, "Tanque vacio: %d minutos.\n\n", elapsedTime);
             }
             
@@ -394,15 +413,15 @@ main (int argc, char *argv[])
 
             elapsedTime += (*currentServer).time;
 
-            i += 38000;
+            inventory += 38000;
 
-            fprintf(report, "Llegada de la gandola: %d minutos, %d litros.\n\n", elapsedTime, i);
+            fprintf(report, "Llegada de la gandola: %d minutos, %d litros.\n\n", elapsedTime, inventory);
             
         } else {
 
             printf("No tengo espacio para mas gasolina, esperare...\n");
 	    
-            if (i == cp){
+            if (inventory == cp){
                 printf("1\n");
                 fprintf(report, "Tanque full: %d minutos.\n\n", elapsedTime);
                 printf("2\n");
@@ -424,8 +443,8 @@ main (int argc, char *argv[])
                 sleep((*currentServer).time*0.10);
                 elapsedTime = elapsedTime + (*currentServer).time;
 
-                i -= (*currentServer).time*c;
-                i += 38000;
+                inventory -= (*currentServer).time*c;
+                inventory += 38000;
 
             } else if (sust == 0.0){
                 sleep((MT - elapsedTime)*0.10);
@@ -433,16 +452,18 @@ main (int argc, char *argv[])
 
                 sleep(sust*0.10);
         		elapsedTime += sust;
-        		i -= (sust)*c;
+        		inventory -= (sust)*c;
         		elapsedTime += askForGas(&currentServer, &best, CentersFile, report, elapsedTime, gasStation);
         		sleep((*currentServer).time*0.10);
                 elapsedTime += (*currentServer).time;
-                i -= (*currentServer).time*c;
-                i += 38000;
+                inventory -= (*currentServer).time*c;
+                inventory += 38000;
             }
         }
 
     }
+
+    pthread_join(timeThread, &exit_status);
 
     if( !fclose(report) )
         printf( "Archivo de reportes listo para ser leido\n" );
