@@ -8,10 +8,11 @@
 #ifndef MT
 #define MT 480
 #endif
+#include <string.h>
 
 struct Server{
     
-    char distCenter[41];
+    char distCenter[50];
     int port;
     char host[128];
     int time;
@@ -98,21 +99,30 @@ list *seekBestTime(char CentersFile[]){
             tempitem = (bestServer *)malloc(sizeof(bestServer));
 
             clnt = clnt_create (ip, CENTRO_PROG, CENTRO_VERS, "udp");
-            if (clnt != NULL) {
+
+            if (clnt == NULL) {
+                printf("El centro en el host %s no esta disponible, siguiente centro...\n", ip);
+            } else {
 
                 result_1 = askfortime_1(NULL, clnt);
 
-                bestTime = *result_1;
+                if (result_1 != (int *) NULL) {
 
-                strcpy((*tempitem).distCenter,distCenter);
-                (*tempitem).time = bestTime;
-                strcpy((*tempitem).host,ip);
-                (*tempitem).port = port;
+                    bestTime = *result_1;
 
-                addList(result, tempitem);
+                    strcpy((*tempitem).distCenter, distCenter);
 
-                clnt_destroy (clnt);
+                    (*tempitem).time = bestTime;
+                    strcpy((*tempitem).host,ip);
+                    (*tempitem).port = port;
 
+                    addList(result, tempitem);
+
+                    clnt_destroy (clnt);
+
+                } else {
+                    printf("El centro en el host %s no esta disponible, siguiente centro...\n", ip);
+                }
             }
         }
 
@@ -278,6 +288,7 @@ main (int argc, char *argv[])
     list *best;
     bestServer *currentServer;
 
+
     if (argc != 11) {
         perror("El numero de argumentos es invalido, abortando...\n");
         exit(1);
@@ -317,6 +328,8 @@ main (int argc, char *argv[])
     begin = time(NULL);
 
     best = seekBestTime(CentersFile);
+
+    printf("hola\n");
 
     currentServer = (*best).begin;
 
