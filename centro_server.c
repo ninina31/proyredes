@@ -5,83 +5,7 @@
  */
 
 #include "centro.h"
-#ifndef timeWorking
-#define timeWorking 480
-#endif
-
-pthread_mutex_t lock_file;
-pthread_mutex_t lock_inventory;
-
-FILE* file;
-int executionTime = 0;
-char centerName[42];
-int maximumCapacity = 0;
-int inventory = 0;
-int supply = 0;
-int timeTruck = 0;
-
-int getTime(){
-    return timeTruck;
-}
-int getSupply(){
-    return supply;
-}
-int getCapacity(){
-    return maximumCapacity;
-}
-int getInventory(){
-    return inventory;
-}
-
-void setInventory(int newInventory){
-
-    pthread_mutex_lock(&lock_inventory);
-    inventory = newInventory;
-    pthread_mutex_unlock(&lock_inventory);
-}
-
-void errorControler(const char *msg){
-    perror(msg);
-    exit(1);
-}
-
-/*
- @objetivo de la funcion: modificar el inventario del centro cada vez que un cliente hace una peticion
-*/
-int empty(){
-    int i = getInventory();
-    if ( i >= 38000 ){
-	setInventory(i - 38000);
-    }
-    return i;
-}
-/*
- @string: cadena de caracteres que representa lo que se va a escribir en un fichero
- @objetivo de la funcion: escribir en un fichero la cadena de caracteres representada por string
-*/
-void writeInFile(char *string){
-    
-    pthread_mutex_lock(&lock_file);
-    
-    fprintf(file, "%s\n\n", string);
-
-    pthread_mutex_unlock(&lock_file);
-}
-/*
- @objetivo de *timeHandler: funcion que ejecuta el tiempo de ejecucion del servidor, el mismo no sera mayor que 48 segundos
-*/
-void *timeHandler(){
-
-    int n;
-    int fill = 10*supply;
-
-    while( executionTime < timeWorking ){
-    	sleep( 1 );
-    	executionTime += 10;
-        setInventory(getInventory() + fill);
-    }
-}
-
+#include "util.h"
 
 int *
 askfortime_1_svc(void *argp, struct svc_req *rqstp)
@@ -89,9 +13,9 @@ askfortime_1_svc(void *argp, struct svc_req *rqstp)
 	static int  result;
 
 	char stringToFile[256];
-    int timeT = getTime();    
+    int timeT = executionTime;    
 
-    if( getInventory() == maximumCapacity ){
+    if( inventory == maximumCapacity ){
 		sprintf( stringToFile, "Tanque Lleno: %d minutos", executionTime );
 		writeInFile(stringToFile);
     }
@@ -111,21 +35,21 @@ askforsupply_1_svc(char *argp, struct svc_req *rqstp)
 	char stringToFile[256];
     int i = 0;
 
-    if( getInventory() == maximumCapacity ){
+    if( inventory == maximumCapacity ){
 		sprintf( stringToFile, "Tanque Lleno: %d minutos", executionTime );
 		writeInFile(stringToFile);
     }
 	
 	printf("Cliente solicito suministro\n");
 	    
-	i = getInventory();
+	i = inventory;
 	
 	if( i >= 38000 ){
 	    printf("Tengo suficiente inventario, despachando...\n");
 	    empty();
-	    sprintf( stringToFile, "Suministro: %d min, %s, OK, %d l", executionTime, nameBomba, getInventory() );
+	    sprintf( stringToFile, "Suministro: %d min, %s, OK, %d l", executionTime, nameBomba, inventory );
 	    writeInFile(stringToFile);
-	    i = getInventory();
+	    i = inventory;
 		
 	    if( i == 0 ){
 			sprintf( stringToFile, "Tanque Vacio: %d min", executionTime );

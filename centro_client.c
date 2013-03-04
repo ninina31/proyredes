@@ -70,11 +70,6 @@ void addList(list *target, bestServer *object){
     (*target).size += 1;
 }
 
-void errorControler(const char *msg){
-    perror(msg);
-    exit(1);
-}
-
 list *seekBestTime(char CentersFile[]){
     
     FILE *fp;
@@ -122,11 +117,13 @@ list *seekBestTime(char CentersFile[]){
         }
 
     } else{
-       errorControler("Error abriendo archivo de centros de distribucion\n");
+        perror("Error abriendo archivo de centros de distribucion\n");
+        exit(1);
     }
 
     if(fclose(fp)){
-       errorControler( "Error: archivo no cerrado\n");
+        perror("Error: archivo no cerrado\n");
+        exit(1);
     }
 
     return result;
@@ -282,7 +279,8 @@ main (int argc, char *argv[])
     bestServer *currentServer;
 
     if (argc != 11) {
-       errorControler("El numero de argumentos es invalido, abortando...\n");
+        perror("El numero de argumentos es invalido, abortando...\n");
+        exit(1);
     }
 
     for (count = 0; count < 5; ++count){
@@ -293,19 +291,22 @@ main (int argc, char *argv[])
         } else if (strcmp(argv[count*2 + 1],"-cp") == 0){
             cp = atoi(argv[count*2 + 2]);
             if (!(38000 <= cp  && cp <= 3800000)){
-                errorControler("La capacidad maxima debe estar entre 38.000 y 3.800.000 l\n");
+                perror("La capacidad maxima debe estar entre 38.000 y 3.800.000 l\n");
+                exit(1);
             }
             continue;
         } else if (strcmp(argv[count*2 + 1],"-i") == 0){
             i = atoi(argv[count*2 + 2]);
             if (!(0 <= i && i <= cp)){
-                errorControler("En inventario debe estar entre 0 y la capacidad maxima\n");
+                perror("En inventario debe estar entre 0 y la capacidad maxima\n");
+                exit(1);
             }
             continue;
         } else if (strcmp(argv[count*2 + 1],"-c") == 0){
             c = atoi(argv[count*2 + 2]);
             if (!(0 <= c && c <= 1000)){
-                errorControler("El consumo promedio debe estar entre 0 y 1.000l/min\n");
+                perror("El consumo promedio debe estar entre 0 y 1.000l/min\n");
+                exit(1);
             }
             continue;
         } else if (strcmp(argv[count*2 + 1],"-fc") == 0){
@@ -324,7 +325,8 @@ main (int argc, char *argv[])
     report = fopen(fileName,"w+");
 
     if (report == NULL){
-        errorControler("Error abriendo el archivo de reporte\n");
+        perror("Error abriendo el archivo de reporte\n");
+        exit(1);
     }
     
     fprintf(report, "Eventos Importantes\n\n", i);
@@ -401,9 +403,10 @@ main (int argc, char *argv[])
     }
 
     if( !fclose(report) )
-      printf( "Archivo de reportes listo para ser leido\n" );
+        printf( "Archivo de reportes listo para ser leido\n" );
 	else {
-      errorControler( "Error: archivo de reporte no se ha cerrado\n" );
+        perror( "Error: archivo de reporte no se ha cerrado\n" );
+        exit(1);
 	}
 
     currentServer = (*best).begin;
