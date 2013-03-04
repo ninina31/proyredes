@@ -163,12 +163,8 @@ main (int argc, char **argv)
 	}
 
 	svc_run ();
+
 	fprintf (stderr, "%s", "svc_run returned");
-
-   	while( executionTime < timeWorking ){
-
-    	
-    }
 
 	pthread_join(timeThread, &exit_status);
 

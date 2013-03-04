@@ -13,7 +13,9 @@ askfortime_1_svc(void *argp, struct svc_req *rqstp)
 	static int  result;
 
 	char stringToFile[256];
-    int timeT = executionTime;    
+    int timeT = executionTime;   
+
+    printf("Me pidieron tiempo\n");
 
     if( inventory == maximumCapacity ){
 		sprintf( stringToFile, "Tanque Lleno: %d minutos", executionTime );
@@ -34,6 +36,8 @@ askforsupply_1_svc(char *argp, struct svc_req *rqstp)
 
 	char stringToFile[256];
     int i = 0;
+
+    printf("Me pidieron suministro\n");
 
     if( inventory == maximumCapacity ){
 		sprintf( stringToFile, "Tanque Lleno: %d minutos", executionTime );
