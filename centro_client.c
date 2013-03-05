@@ -10,6 +10,7 @@
 #endif
 #include <string.h>
 #include <pthread.h>
+#include <unistd.h>
 
 int executionTime = 0;
 int inventory;
@@ -100,7 +101,7 @@ list *seekBestTime(char CentersFile[]){
 
     if (fp != NULL){
         
-        while (feof(fp) == 0){
+        while (feof(fp) == 0 && executionTime < MT){
 
             n = fscanf(fp, "%[^&]&%[^&]&%d\n", distCenter, ip, &port);
 
@@ -110,6 +111,7 @@ list *seekBestTime(char CentersFile[]){
 
             if (clnt == NULL) {
                 printf("El centro en el host %s no esta disponible, siguiente centro...\n", ip);
+                printf("executionTime: %d\n", executionTime);
             } else {
 
                 result_1 = askfortime_1(NULL, clnt);
@@ -125,8 +127,6 @@ list *seekBestTime(char CentersFile[]){
                     (*tempitem).port = port;
 
                     addList(result, tempitem);
-
-                    printf("agregue a %s\n", distCenter);
 
                     bzero(distCenter, 42);
 
@@ -164,19 +164,10 @@ Salida: tiempo de respuesta de la peticion de suministro de gasolina.
 
 */
 
-int askForGas(bestServer **orig, list **servers, char CentersFile[], FILE *report, int elapsedTime, char *gasStation){
+void askForGas(bestServer **orig, list **servers, char CentersFile[], FILE *report, char *gasStation){
 
     int bool = 0;
     int respuesta = 0;
-
-    time_t begin;
-    time_t end;
-    int timeSpent;
-
-    time_t bMeasureTime;
-    time_t eMeasureTime;
-
-    int totalTime = elapsedTime;
 
     bestServer **best = orig;
 
@@ -185,17 +176,11 @@ int askForGas(bestServer **orig, list **servers, char CentersFile[], FILE *repor
     CLIENT *clnt;
     int  *result_2;
 
-    begin = time(NULL);
-
-    while ((**servers).size == 0){
+    while ((**servers).size == 0 && executionTime < MT){
         *servers = seekBestTime(CentersFile);
     }
 
-    while (bool == 0 && totalTime < MT){
-
-        printf("entre a pedir\n");
-
-        bMeasureTime = time(NULL);
+    while (bool == 0 && executionTime < MT){
 
         clnt = clnt_create ((**best).host, CENTRO_PROG, CENTRO_VERS, "udp");
 
@@ -203,66 +188,41 @@ int askForGas(bestServer **orig, list **servers, char CentersFile[], FILE *repor
 
             printf("El centro con mejor respuesta no esta disponible, buscando el siguiente...\n");
 
-            end = time(NULL);
-            timeSpent = (int)(end - begin)*10;
-            n = elapsedTime + timeSpent;
-            fprintf(report, "Peticion: %d minutos, %s, Sin Respuesta.\n\n", n, (**best).distCenter);
-            n = (**best).port;
+            fprintf(report, "Peticion: %d minutos, %s, Sin Respuesta.\n\n", executionTime, (**best).distCenter);
 
             if((**best).next == NULL){
                 *servers = seekBestTime(CentersFile);
-                printf("estoy aqui1\n");
                 *best = (**servers).begin;
-                printf("estoy aqui2\n");
             } else {
                 *best = (**best).next;
             }
             
         }
 
-        end = time(NULL);
-        timeSpent = (int)(end - begin);
-        n = elapsedTime + timeSpent;
-
         result_2 = askforsupply_1(gasStation, clnt);
 
         respuesta = *result_2;
 
         if (respuesta == 0){
-            fprintf(report, "Peticion: %d minutos, %s, OK.\n\n", n, (**best).distCenter);
+            fprintf(report, "Peticion: %d minutos, %s, OK.\n\n", executionTime, (**best).distCenter);
             bool = 1;
 
         } else {
-            fprintf(report, "Peticion: %d minutos, %s, Sin inventario.\n\n", n, (**best).distCenter);
+            fprintf(report, "Peticion: %d minutos, %s, Sin inventario.\n\n", executionTime, (**best).distCenter);
 
             printf("El centro me respondio que no tiene suministro, buscando otro centro...\n");
 
             if((**best).next == NULL){
                 *servers = seekBestTime(CentersFile);
-                printf("estoy aqui1\n");
                 *best = (**servers).begin;
-                printf("estoy aqui2\n");
             } else {
                 *best = (**best).next;
             }
         }
 
         clnt_destroy (clnt);
-        eMeasureTime = time(NULL);
-
-        totalTime += (int)(eMeasureTime - bMeasureTime);
-
-        printf("totalTime : %d\n", totalTime);
-
     }
 
-    end = time(NULL);
-
-    timeSpent = (int)(end - begin)*10;
-
-    printf("me salgo\n");
-
-    return timeSpent;
 }
 
 void
@@ -297,12 +257,18 @@ centro_prog_1(char *host)
 
 void *timeHandler(void *c){
 
-    double fill = 0.5*(int)*c;
+    int c1 = *(int *)c;
+
+    int fill = 10*c1;
 
     while( executionTime < MT ){
-        sleep( 0.5 );
-        executionTime += 5;
-        inventory -= (int)fill;
+        sleep( 1 );
+        executionTime += 10;
+        if ((inventory - fill) >= 0){
+            inventory -= (int)fill;
+        } else {
+            inventory = 0;
+        }
     }
 }
 
@@ -315,9 +281,8 @@ main (int argc, char *argv[])
     int c = 0;
     char* CentersFile;
     int count = 0;
-    int elapsedTime = 0;
-    time_t begin;
-    time_t end;
+
+    unsigned aux;
 
     FILE *report;
     char fileName[51] = "log_";
@@ -330,6 +295,7 @@ main (int argc, char *argv[])
     bestServer *currentServer;
 
     pthread_t timeThread;
+    void* exit_status;
 
     if (argc != 11) {
         perror("El numero de argumentos es invalido, abortando...\n");
@@ -367,7 +333,7 @@ main (int argc, char *argv[])
         }
     }
 
-    begin = time(NULL);
+    pthread_create( &timeThread, NULL, timeHandler, (void *)&c);
 
     best = seekBestTime(CentersFile);
 
@@ -385,16 +351,10 @@ main (int argc, char *argv[])
     fprintf(report, "Eventos Importantes\n\n");
 
     fprintf(report, "Inventario Inicial: %d litros.\n\n", inventory);
-
-    end = time(NULL);
-
-    pthread_create( &timeThread, NULL, timeHandler, (void *)&c );
-
-    elapsedTime = (int) (end - begin);
     
-    while( elapsedTime < MT ){
+    while( executionTime < MT ){
 
-        printf("Tiempo Transcurrido: %d\n", elapsedTime);
+        printf("Tiempo Transcurrido: %d\n", executionTime);
         printf("Inventario: %d\n", inventory);
 
         missingGas = cp - inventory;
@@ -404,60 +364,62 @@ main (int argc, char *argv[])
             printf("Tengo espacio para mas gasolina, pedire suministro\n");
 
 	    if (inventory == 0){
-                fprintf(report, "Tanque vacio: %d minutos.\n\n", elapsedTime);
+                fprintf(report, "Tanque vacio: %d minutos.\n\n", executionTime);
             }
             
-            elapsedTime += askForGas(&currentServer, &best, CentersFile, report, elapsedTime, gasStation);
+            askForGas(&currentServer, &best, CentersFile, report, gasStation);
 
-            sleep((*currentServer).time*0.10);
+            if (currentServer != NULL){
+                aux = (unsigned)(*currentServer).time*100000;
 
-            elapsedTime += (*currentServer).time;
+                usleep(aux);
 
-            inventory += 38000;
+                inventory += 38000;
 
-            fprintf(report, "Llegada de la gandola: %d minutos, %d litros.\n\n", elapsedTime, inventory);
+                fprintf(report, "Llegada de la gandola: %d minutos, %d litros.\n\n", executionTime, inventory);
+            }
+            
             
         } else {
 
             printf("No tengo espacio para mas gasolina, esperare...\n");
 	    
             if (inventory == cp){
-                printf("1\n");
-                fprintf(report, "Tanque full: %d minutos.\n\n", elapsedTime);
-                printf("2\n");
+                fprintf(report, "Tanque full: %d minutos.\n\n", executionTime);
             }
 
-            if (c != 0){
-                missingTime = (double)(38000 - missingGas) / c;
-                sust = missingTime - (*currentServer).time;
-                printf("jum\n");
-            } else {
-                missingTime = 0;
-            }
+            if (currentServer != NULL){
 
-            printf("hola\n");
-	     
-            if (sust < 0.0){
+                if (c != 0){
+                    missingTime = (double)(38000 - missingGas) / c;
+                    sust = missingTime - (*currentServer).time;
+                } else {
+                    missingTime = 0;
+                }
+    	     
+                if (sust < 0.0){
 
-                elapsedTime += askForGas(&currentServer, &best, CentersFile, report, elapsedTime, gasStation);
-                sleep((*currentServer).time*0.10);
-                elapsedTime = elapsedTime + (*currentServer).time;
+                    askForGas(&currentServer, &best, CentersFile, report, gasStation);
 
-                inventory -= (*currentServer).time*c;
-                inventory += 38000;
+                    usleep((*currentServer).time*100000);
 
-            } else if (sust == 0.0){
-                sleep((MT - elapsedTime)*0.10);
-            } else {
+                    inventory -= (*currentServer).time*c;
+                    inventory += 38000;
 
-                sleep(sust*0.10);
-        		elapsedTime += sust;
-        		inventory -= (sust)*c;
-        		elapsedTime += askForGas(&currentServer, &best, CentersFile, report, elapsedTime, gasStation);
-        		sleep((*currentServer).time*0.10);
-                elapsedTime += (*currentServer).time;
-                inventory -= (*currentServer).time*c;
-                inventory += 38000;
+                } else if (sust == 0.0){
+
+                    usleep((MT - executionTime)*100000);
+                } else {
+
+                    usleep(sust*100000);
+            		inventory -= (sust)*c;
+            		askForGas(&currentServer, &best, CentersFile, report, gasStation);
+
+            		usleep((*currentServer).time*100000);
+                    inventory -= (*currentServer).time*c;
+                    inventory += 38000;
+                }
+
             }
         }
 
@@ -472,14 +434,16 @@ main (int argc, char *argv[])
         exit(1);
 	}
 
-    currentServer = (*best).begin;
-    bestServer *temp = (*currentServer).next;
+    if (currentServer != NULL){
+        currentServer = (*best).begin;
+        bestServer *temp = (*currentServer).next;
 
-	while(currentServer != NULL){
-        free(currentServer);
-        currentServer = temp;
-        if (temp != NULL){
-            temp = (*temp).next;
+        while(currentServer != NULL){
+            free(currentServer);
+            currentServer = temp;
+            if (temp != NULL){
+                temp = (*temp).next;
+            }
         }
     }
 

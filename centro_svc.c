@@ -78,8 +78,7 @@ centro_prog_1(struct svc_req *rqstp, register SVCXPRT *transp)
 int
 main (int argc, char **argv)
 {
-
-
+	
 	char fileName[ 51 ] = "log_";
     char stringToFile[256];
     int id = 0;
