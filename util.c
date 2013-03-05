@@ -32,6 +32,11 @@ void *timeHandler(){
     while( executionTime < timeWorking ){
         sleep( 1 );
         executionTime += 10;
-        setInventory(inventory + fill);
+        if ((inventory + fill) <= maximunCapacity){
+            setInventory(inventory + fill);
+        } else {
+            inventory = maximunCapacity;
+        }
+        
     }
 }
