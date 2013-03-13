@@ -3,27 +3,26 @@
 
 # Parameters
 
-CLIENT = centro_client
-SERVER = centro_server
+CLIENT = rand_client
+SERVER = rand_server
 
 SOURCES_CLNT.c = 
 SOURCES_CLNT.h = 
 SOURCES_SVC.c = 
 SOURCES_SVC.h = 
-SOURCES.x = centro.x
+SOURCES.x = rand.x
 
-TARGETS_SVC.c = centro_svc.c centro_server.c
-TARGETS_CLNT.c = centro_clnt.c centro_client.c
-TARGETS = centro.h  centro_clnt.c centro_svc.c centro_client.c centro_server.c
+TARGETS_SVC.c = rand_svc.c rand_server.c   
+TARGETS_CLNT.c = rand_clnt.c rand_client.c   
+TARGETS = rand.h   rand_clnt.c rand_svc.c rand_client.c rand_server.c
 
 OBJECTS_CLNT = $(SOURCES_CLNT.c:%.c=%.o) $(TARGETS_CLNT.c:%.c=%.o)
-OBJECTS_SVC = $(SOURCES_SVC.c:%.c=%.o) $(TARGETS_SVC.c:%.c=%.o) util.o
+OBJECTS_SVC = $(SOURCES_SVC.c:%.c=%.o) $(TARGETS_SVC.c:%.c=%.o)
 # Compiler flags 
 
-CFLAGS += -g
+CFLAGS += -g 
 LDLIBS += -lnsl
 RPCGENFLAGS = 
-PTHREADFLAG = -lpthread
 
 # Targets 
 
@@ -34,13 +33,13 @@ $(TARGETS) : $(SOURCES.x)
 
 $(OBJECTS_CLNT) : $(SOURCES_CLNT.c) $(SOURCES_CLNT.h) $(TARGETS_CLNT.c) 
 
-$(OBJECTS_SVC) : $(SOURCES_SVC.c) $(SOURCES_SVC.h) $(TARGETS_SVC.c)
+$(OBJECTS_SVC) : $(SOURCES_SVC.c) $(SOURCES_SVC.h) $(TARGETS_SVC.c) 
 
 $(CLIENT) : $(OBJECTS_CLNT) 
-	$(LINK.c) -o $(CLIENT) $(OBJECTS_CLNT) $(LDLIBS) $(PTHREADFLAG)
+	$(LINK.c) -o $(CLIENT) $(OBJECTS_CLNT) $(LDLIBS) 
 
 $(SERVER) : $(OBJECTS_SVC) 
-	$(LINK.c) -o $(SERVER) $(OBJECTS_SVC) $(LDLIBS) $(PTHREADFLAG)
+	$(LINK.c) -o $(SERVER) $(OBJECTS_SVC) $(LDLIBS)
 
  clean:
 	 $(RM) core $(TARGETS) $(OBJECTS_CLNT) $(OBJECTS_SVC) $(CLIENT) $(SERVER)

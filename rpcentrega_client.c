@@ -4,9 +4,15 @@
  * as a guideline for developing your own functions.
  */
 
-#include "centro.h"
+/*sudo ./rpcentrega_server -n CD1 -cp 100000 -i 50000 -s 1000 -t 60
+sudo ./rpcentrega_client -n B1 -cp 100000 -i 50000 -c 0 -fc file.txt*/
+
+#include "rpcentrega.h"
+ 
+#include "crypto.h"
+
 #ifndef MT
-#define MT 480
+#define MT 480 
 #endif
 #include <string.h>
 #include <pthread.h>
@@ -107,7 +113,7 @@ list *seekBestTime(char CentersFile[]){
 
             tempitem = (bestServer *)malloc(sizeof(bestServer));
 
-            clnt = clnt_create (ip, CENTRO_PROG, CENTRO_VERS, "udp");
+            clnt = clnt_create (ip, RPCENTREGA_PROG, RPCENTREGA_VERS, "udp");
 
             if (clnt == NULL) {
                 printf("El centro en el host %s no esta disponible, siguiente centro...\n", ip);
@@ -169,45 +175,80 @@ void askForGas(bestServer **orig, list **servers, char CentersFile[], FILE *repo
     int bool = 0;
     int respuesta = 0;
 
+    int *seed; // the seed of the client!
+    char key[64] = "clave";
+
+    int c = 0;
     bestServer **best = orig;
 
     int n;
 
     CLIENT *clnt;
-    int  *result_2;
+    int *result_2;
+
+    printf("entre a la funcion\n");
 
     while ((**servers).size == 0 && executionTime < MT){
         *servers = seekBestTime(CentersFile);
     }
-
+    
     while (bool == 0 && executionTime < MT){
 
-        clnt = clnt_create ((**best).host, CENTRO_PROG, CENTRO_VERS, "udp");
+        clnt = clnt_create ( (**best).host, RPCENTREGA_PROG, RPCENTREGA_VERS, "udp");
 
         if (clnt == NULL){
-
-            printf("El centro con mejor respuesta no esta disponible, buscando el siguiente...\n");
-
-            fprintf(report, "Peticion: %d minutos, %s, Sin Respuesta.\n\n", executionTime, (**best).distCenter);
-
-            if((**best).next == NULL){
-                *servers = seekBestTime(CentersFile);
-                *best = (**servers).begin;
-            } else {
-                *best = (**best).next;
-            }
-            
+            respuesta = -1;
         }
 
-        result_2 = askforsupply_1(gasStation, clnt);
+        printf("pedi conexion\n");
 
-        respuesta = *result_2;
+        /*
+        * I have to autentificate the client to stablish the connection.
+        */
+
+        seed = autentificarbomba_1( gasStation, clnt ); // now the client have a seed.
+
+        if ( seed == (int *) NULL) {
+            respuesta = -1;
+        }
+
+        printf("pedi autentificacion\n");
+
+        //printf( "Problem with the seed %d", *seed );
+        //key = MD5(seed);
+        c = (int)*seed;
+
+        strcpy( key, (char *)makeMD5FI( c ) );
+
+        /*ES AQUI EL ERROR*/
+
+        result_2 = (int *)confirm_1( key, clnt);
+
+        printf("pedi confirmacion\n");
+
+         if( result_2 != (int *)NULL){ /*Verification have to be a remote function too*/
+
+            printf("entre a result\n");
+
+            /* Once that the client is autentificate then he/she can ask for supply */
+            result_2 = askforsupply_1( gasStation, clnt );
+
+            if (result_2 == (int *) NULL) {
+                respuesta = -1;
+            } else {
+                respuesta = *result_2;
+            }
+        } else{
+            printf("hola bebe ;) estoy aqui\n");
+        }
+
+        printf("respuesta %d\n", respuesta);
 
         if (respuesta == 0){
             fprintf(report, "Peticion: %d minutos, %s, OK.\n\n", executionTime, (**best).distCenter);
             bool = 1;
 
-        } else {
+        } else if (respuesta == 1) {
             fprintf(report, "Peticion: %d minutos, %s, Sin inventario.\n\n", executionTime, (**best).distCenter);
 
             printf("El centro me respondio que no tiene suministro, buscando otro centro...\n");
@@ -218,24 +259,41 @@ void askForGas(bestServer **orig, list **servers, char CentersFile[], FILE *repo
             } else {
                 *best = (**best).next;
             }
-        }
+        } else if (respuesta == 2) {
+            fprintf(report, "Peticion: %d minutos, %s, Ticket expirado.\n\n", executionTime, (**best).distCenter);
 
+            printf("Ticket expirado, repitiendo la peticion...\n");
+        }
+         else {
+
+            fprintf(report, "Peticion: %d minutos, %s, Sin Respuesta.\n\n", executionTime, (**best).distCenter);
+
+            if((**best).next == NULL){
+                *servers = seekBestTime(CentersFile);
+                *best = (**servers).begin;
+            } else {
+                *best = (**best).next;
+            }
+        }
         clnt_destroy (clnt);
     }
-
 }
 
 void
-centro_prog_1(char *host)
+rpcentrega_prog_1(char *host)
 {
 	CLIENT *clnt;
 	int  *result_1;
 	char *askfortime_1_arg;
 	int  *result_2;
 	char  askforsupply_1_arg;
+	int  *result_3;
+	char  autentificarbomba_1_arg;
+	int  *result_4;
+	char  confirm_1_arg;
 
 #ifndef	DEBUG
-	clnt = clnt_create (host, CENTRO_PROG, CENTRO_VERS, "udp");
+	clnt = clnt_create (host, RPCENTREGA_PROG, RPCENTREGA_VERS, "udp");
 	if (clnt == NULL) {
 		clnt_pcreateerror (host);
 		exit (1);
@@ -250,6 +308,14 @@ centro_prog_1(char *host)
 	if (result_2 == (int *) NULL) {
 		clnt_perror (clnt, "call failed");
 	}
+	result_3 = autentificarbomba_1(&autentificarbomba_1_arg, clnt);
+	if (result_3 == (int *) NULL) {
+		clnt_perror (clnt, "call failed");
+	}
+	result_4 = confirm_1(&confirm_1_arg, clnt);
+	if (result_4 == (int *) NULL) {
+		clnt_perror (clnt, "call failed");
+	}
 #ifndef	DEBUG
 	clnt_destroy (clnt);
 #endif	 /* DEBUG */
@@ -259,11 +325,14 @@ void *timeHandler(void *c){
 
     int c1 = *(int *)c;
 
-    int fill = 10*c1;
+    int fill = 5*c1;
 
     while( executionTime < MT ){
-        sleep( 1 );
-        executionTime += 10;
+        usleep( 500000 );
+        executionTime += 5;
+        printf("executionTime: %d\n", executionTime);
+        printf("inventory: %d\n", inventory);
+
         if ((inventory - fill) >= 0){
             inventory -= (int)fill;
         } else {
@@ -271,7 +340,6 @@ void *timeHandler(void *c){
         }
     }
 }
-
 
 int
 main (int argc, char *argv[])
@@ -282,8 +350,6 @@ main (int argc, char *argv[])
     char* CentersFile;
     int count = 0;
 
-    unsigned aux;
-
     FILE *report;
     char fileName[51] = "log_";
 
@@ -291,7 +357,7 @@ main (int argc, char *argv[])
     int missingGas = 0;
     double sust = 0.0;
 
-    list *best = NULL;
+    list *best = (list *)malloc(sizeof(list));
     bestServer *currentServer;
 
     pthread_t timeThread;
@@ -333,7 +399,7 @@ main (int argc, char *argv[])
         }
     }
 
-    pthread_create( &timeThread, NULL, timeHandler, (void *)&c);
+    pthread_create( &timeThread, NULL, timeHandler, (void *)&c);    
 
     best = seekBestTime(CentersFile);
 
@@ -342,6 +408,7 @@ main (int argc, char *argv[])
     strcat(fileName, gasStation);
     strcat(fileName, ".txt");
     report = fopen(fileName,"w+");
+
 
     if (report == NULL){
         perror("Error abriendo el archivo de reporte\n");
@@ -370,9 +437,8 @@ main (int argc, char *argv[])
             askForGas(&currentServer, &best, CentersFile, report, gasStation);
 
             if (currentServer != NULL){
-                aux = (unsigned)(*currentServer).time*100000;
 
-                usleep(aux);
+                usleep((*currentServer).time*100000);
 
                 inventory += 38000;
 

@@ -3,7 +3,7 @@
  * It was generated using rpcgen.
  */
 
-#include "centro.h"
+#include "rpcentrega.h"
 #include "util.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,6 +17,10 @@
 #define SIG_PF void(*)(int)
 #endif
 
+#ifdef INCLUDE_GLOBALH
+#include "global.h"
+#endif
+
 pthread_mutex_t lock_file;
 pthread_mutex_t lock_inventory;
 
@@ -28,11 +32,15 @@ int inventory;
 int supply;
 int timeTruck;
 
+void *timeHandler();
+
 static void
-centro_prog_1(struct svc_req *rqstp, register SVCXPRT *transp)
+rpcentrega_prog_1(struct svc_req *rqstp, register SVCXPRT *transp)
 {
 	union {
 		char askforsupply_1_arg;
+		char autentificarbomba_1_arg;
+		char confirm_1_arg;
 	} argument;
 	char *result;
 	xdrproc_t _xdr_argument, _xdr_result;
@@ -53,6 +61,18 @@ centro_prog_1(struct svc_req *rqstp, register SVCXPRT *transp)
 		_xdr_argument = (xdrproc_t) xdr_char;
 		_xdr_result = (xdrproc_t) xdr_int;
 		local = (char *(*)(char *, struct svc_req *)) askforsupply_1_svc;
+		break;
+
+	case AUTENTIFICARBOMBA:
+		_xdr_argument = (xdrproc_t) xdr_char;
+		_xdr_result = (xdrproc_t) xdr_int;
+		local = (char *(*)(char *, struct svc_req *)) autentificarbomba_1_svc;
+		break;
+
+	case CONFIRM:
+		_xdr_argument = (xdrproc_t) xdr_char;
+		_xdr_result = (xdrproc_t) xdr_int;
+		local = (char *(*)(char *, struct svc_req *)) confirm_1_svc;
 		break;
 
 	default:
@@ -78,7 +98,7 @@ centro_prog_1(struct svc_req *rqstp, register SVCXPRT *transp)
 int
 main (int argc, char **argv)
 {
-	
+
 	char fileName[ 51 ] = "log_";
     char stringToFile[256];
     int id = 0;
@@ -87,6 +107,10 @@ main (int argc, char **argv)
 
     int timeSpent = 0;
     pthread_t timeThread;
+
+    rl = ( rlist* )malloc( sizeof( rlist ) );
+
+    initialize( rl );
 
     if(argc != 11 ){
 		perror("El numero de argumentos es invalido, abortando...\n");
@@ -119,6 +143,7 @@ main (int argc, char **argv)
 		    continue;
 		}
     }
+
 	
     strcat( fileName, centerName );
     strcat( fileName, ".txt" );
@@ -128,10 +153,10 @@ main (int argc, char **argv)
     	perror( "El archivo no abrio\n" );
 		exit(1);
     }
-
     writeInFile( "Eventos Importantes" );
     sprintf( stringToFile, "Inventario Inicial: %d l", inventory);
     writeInFile( stringToFile );
+
 
     printf("Inventario Inicial: %d l\n", inventory);
 
@@ -139,15 +164,16 @@ main (int argc, char **argv)
 
 	register SVCXPRT *transp;
 
-	pmap_unset (CENTRO_PROG, CENTRO_VERS);
+	pmap_unset (RPCENTREGA_PROG, RPCENTREGA_VERS);
 
 	transp = svcudp_create(RPC_ANYSOCK);
+
 	if (transp == NULL) {
 		fprintf (stderr, "%s", "cannot create udp service.");
 		exit(1);
 	}
-	if (!svc_register(transp, CENTRO_PROG, CENTRO_VERS, centro_prog_1, IPPROTO_UDP)) {
-		fprintf (stderr, "%s", "unable to register (CENTRO_PROG, CENTRO_VERS, udp).");
+	if (!svc_register(transp, RPCENTREGA_PROG, RPCENTREGA_VERS, rpcentrega_prog_1, IPPROTO_UDP)) {
+		fprintf (stderr, "%s", "unable to register (RPCENTREGA_PROG, RPCENTREGA_VERS, udp).");
 		exit(1);
 	}
 
@@ -156,14 +182,12 @@ main (int argc, char **argv)
 		fprintf (stderr, "%s", "cannot create tcp service.");
 		exit(1);
 	}
-	if (!svc_register(transp, CENTRO_PROG, CENTRO_VERS, centro_prog_1, IPPROTO_TCP)) {
-		fprintf (stderr, "%s", "unable to register (CENTRO_PROG, CENTRO_VERS, tcp).");
+	if (!svc_register(transp, RPCENTREGA_PROG, RPCENTREGA_VERS, rpcentrega_prog_1, IPPROTO_TCP)) {
+		fprintf (stderr, "%s", "unable to register (RPCENTREGA_PROG, RPCENTREGA_VERS, tcp).");
 		exit(1);
 	}
 
-	svc_run ();
-
-	fprintf (stderr, "%s", "svc_run returned");
+	own_svc_run ();
 
 	pthread_join(timeThread, &exit_status);
 
@@ -171,5 +195,6 @@ main (int argc, char **argv)
 
     printf( "Archivo de reportes listo para ser leido\n" );
 
-    return 0;
+	exit (1);
+	/* NOTREACHED */
 }

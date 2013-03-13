@@ -4,13 +4,13 @@
  * as a guideline for developing your own functions.
  */
 
-#include "centro.h"
+#include "rpcentrega.h"
 #include "util.h"
 
 int *
 askfortime_1_svc(void *argp, struct svc_req *rqstp)
 {
-	static int  result;
+	static int result;
 
 	char stringToFile[256];
     int timeT = executionTime;   
@@ -18,10 +18,11 @@ askfortime_1_svc(void *argp, struct svc_req *rqstp)
     printf("Me pidieron tiempo\n");
 
     if( inventory == maximumCapacity ){
+
 		sprintf( stringToFile, "Tanque Lleno: %d minutos", executionTime );
 		writeInFile(stringToFile);
     }
-	    
+
 	result = timeT;
 
 	return &result;
@@ -30,8 +31,7 @@ askfortime_1_svc(void *argp, struct svc_req *rqstp)
 int *
 askforsupply_1_svc(char *argp, struct svc_req *rqstp)
 {
-	static int  result;
-
+	static int result;
 	char* nameBomba = argp;
 
 	char stringToFile[256];
@@ -40,6 +40,7 @@ askforsupply_1_svc(char *argp, struct svc_req *rqstp)
     printf("Me pidieron suministro\n");
 
     if( inventory == maximumCapacity ){
+
 		sprintf( stringToFile, "Tanque Lleno: %d minutos", executionTime );
 		writeInFile(stringToFile);
     }
@@ -47,6 +48,11 @@ askforsupply_1_svc(char *argp, struct svc_req *rqstp)
 	printf("Cliente solicito suministro\n");
 	    
 	i = inventory;
+
+	if (!check_ticket(rl, nameBomba)){
+		result = 2;
+		return &result;
+	}
 	
 	if( i >= 38000 ){
 	    printf("Tengo suficiente inventario, despachando...\n");
@@ -67,6 +73,54 @@ askforsupply_1_svc(char *argp, struct svc_req *rqstp)
 	    writeInFile(stringToFile);
 	    result = 1;
 	}
+
+	return &result;
+}
+
+/*
+* argv is the name of the gas station and the function is call with "gasStation" var
+*/
+int *
+autentificarbomba_1_svc(char *argp, struct svc_req *rqstp)
+{
+	static int result;
+	/*
+	Recorrer la lista y hacer una búsqueda lineal y ver si el elemento está en la lista, si lo está devuelvo el seed,
+	si no, lo creo y lo devuelvo.
+	Ver el principio de la lista y recorrerlo
+	*/
+
+	result = list_search( rl, argp );
+
+	if( result < 0 ){
+		/*No existe el elemento en la lista*/
+		/*Debo crear el seed*/
+		result = rand() % 100;
+		
+		list_add( result, argp );
+	}
+
+	return &result;
+}
+
+int *
+confirm_1_svc(char *argp, struct svc_req *rqstp)
+{
+	static int result;
+
+ 	node *aux = (*rl).begin;
+
+ 	while( aux != NULL ){
+ 		if( strcmp( argp, (*aux).key ) ){
+ 			(*aux).ticketTime = executionTime;
+ 			result = 1;
+ 			break;
+ 		}
+ 		else{
+		 	result = 0;
+ 		}
+ 		aux = (*aux).next;
+ 	}
 
 	return &result;
 }
