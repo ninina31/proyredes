@@ -7,10 +7,11 @@ void printlist(rlist *list){
   int size = 0;
   size = list->size;
   node* n = list->begin;
-  char* print = " ";
+  char* print;
   int i;
   while( n != NULL ){
       print = n->name;
+      printf( "AQUI\n\n\n\n" );
       printf( "name: %s", print );
       n = n->next;
   }
@@ -19,19 +20,21 @@ void printlist(rlist *list){
 void initialize( rlist* p ){
 
     (*p).size = 0;
-
     (*p).begin = NULL;
     (*p).end = NULL;
 }
 
-void *list_add( int seed, char *bomba ){
+void list_add( int seed, char *bomba ){
 
 	node *n;
   char *key = ( char* )malloc( 64*sizeof(char) );
-  char* aux = ( char* )malloc( 64*sizeof(char) );
+  char *aux = ( char* )malloc( 64*sizeof(char) );
+
   if( key == NULL || aux == NULL ) 
       printf( "Error creando la semilla del nodo\n" );
+
 	n  = ( node* )malloc( sizeof( node ) );
+
 	if( n == NULL ){
         	printf( "Error creando nodo en la lista de peticiones\n" );
 		return ;
@@ -45,15 +48,18 @@ void *list_add( int seed, char *bomba ){
   sprintf( aux, "%d", (*n).seed ); // transform the int to char*
   strcpy( key, MDString ( aux ) ); //create his key 
   strcpy( (*n).key, key ); //copy the key in the correct value
-  n->ticketTime = executionTime;
+  (*n).ticketTime = 0;
+  (*n).next = NULL;
 
-	(*n).next = (*rl).begin; 
-  (*rl).begin = n;
-	/* finaly adding the node to the list  */
+  if ((*rl).size == 0){
+    (*rl).begin = n;
+    (*rl).end = n;
+  } else {
+    (*((*rl).end)).next = n;
+    (*rl).end = n;
+  }
 
   ( *rl ).size++;
-
-  printlist( rl );
 
 }
 
@@ -68,6 +74,7 @@ int list_search( rlist *r, char *name ){
     } 
     n = (*n).next;
 	}
+
 	return -1;
 }
 
@@ -76,8 +83,8 @@ int check_ticket( rlist *r, char *name ){
   node* n = (node* )(*r).begin;
 
   while( n != NULL ){
-    if( (strcmp( (*n).name, name ) == 0) && (executionTime < ((*n).ticketTime + 5))) { 
-      return 0;
+    if( (strcmp( (*n).name, name ) == 0) && (executionTime < ((*n).ticketTime + 60))) { 
+      return 1;
     } 
     n = (*n).next;
   }

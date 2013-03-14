@@ -32,7 +32,8 @@ int *
 askforsupply_1_svc(char *argp, struct svc_req *rqstp)
 {
 	static int result;
-	char* nameBomba = argp;
+	char* nameBomba;
+	strcpy( nameBomba, argp );
 
 	char stringToFile[256];
     int i = 0;
@@ -99,6 +100,8 @@ autentificarbomba_1_svc(char *argp, struct svc_req *rqstp)
 		
 		list_add( result, argp );
 	}
+		//printlist( rl );
+
 
 	return &result;
 }
@@ -111,16 +114,20 @@ confirm_1_svc(char *argp, struct svc_req *rqstp)
  	node *aux = (*rl).begin;
 
  	while( aux != NULL ){
- 		if( strcmp( argp, (*aux).key ) ){
- 			(*aux).ticketTime = executionTime;
+ 		if( strcmp( argp, (*aux).key ) == 0 ){
+ 			printf("confirm\n\n\n\n");
+ 			if (((*aux).ticketTime + 60) > executionTime){
+ 				printf("increment the ticket time\n\n\n\n");
+ 				(*aux).ticketTime = executionTime;
+ 			}
+
  			result = 1;
- 			break;
- 		}
- 		else{
-		 	result = 0;
+ 			return &result;
  		}
  		aux = (*aux).next;
  	}
+
+ 	result = 0;
 
 	return &result;
 }

@@ -35,16 +35,15 @@ struct Node {
 	char name[50];
 	char key[64];
 	int ticketTime;
-
-	struct Node* next;
+	struct Node *next;
 };
+
 typedef struct Node node;
 
 /*Request's list*/
 struct RequestList {
 
 	int size;
-
 	node *begin;
 	node *end;
 };
@@ -55,7 +54,7 @@ rlist *rl;
  
 void initialize( rlist* p );
 
-void *list_add( int seed, char *bomba );
+void list_add( int seed, char *bomba );
 
 int list_search( rlist *n, char *name );
 
